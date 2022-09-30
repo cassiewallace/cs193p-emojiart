@@ -20,6 +20,7 @@ struct EmojiArtDocumentView: View {
         }
     }
     
+    // TODO: selectedEmoji == emoji might want to be a separate func
     var documentBody: some View {
         GeometryReader { geometry in
             ZStack {
@@ -28,15 +29,21 @@ struct EmojiArtDocumentView: View {
                         .scaleEffect(zoomScale)
                         .position(convertFromEmojiCoordinates((0,0), in: geometry))
                 )
-                .gesture(doubleTapToZoom(in: geometry.size))
+                .gesture(doubleTapToZoom(in: geometry.size)
+                    .exclusively(before: tapBackgroundGesture()))
                 if document.backgroundImageFetchStatus == .fetching {
                     ProgressView().scaleEffect(2)
                 } else {
                     ForEach(document.emojis) { emoji in
+                        // TODO: Clean this up to either have 2 (conditional) Text() views, or create a ViewModifier that makes it look different based on whether it's selected.
                         Text(emoji.text)
                             .font(.system(size: fontSize(for: emoji)))
+                            .border(selectedEmoji == emoji ? .black : .clear)
                             .scaleEffect(zoomScale)
                             .position(position(for: emoji, in: geometry))
+                            .offset(selectedEmoji == emoji ? emojiDragOffset : CGSize.zero)
+                            .gesture(tapEmojiGesture(emoji))
+                            .gesture(selectedEmoji == emoji ? dragEmojiGesture(emoji) : nil)
                     }
                 }
             }
@@ -155,6 +162,54 @@ struct EmojiArtDocumentView: View {
             }
             .onEnded { finalDragGestureValue in
                 steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+            }
+    }
+    
+    // MARK: - Tapping Emojis
+    
+    @State private var selectedEmoji: EmojiArtModel.Emoji? = nil
+    
+    private func tapEmojiGesture(_ emoji: EmojiArtModel.Emoji) -> some Gesture {
+        TapGesture(count: 1)
+            .onEnded {
+                withAnimation {
+                    if selectedEmoji == emoji {
+                        selectedEmoji = nil
+                    } else {
+                        selectedEmoji = emoji
+                    }
+                }
+            }
+
+    }
+    
+    private func tapBackgroundGesture() -> some Gesture {
+        TapGesture(count: 1)
+            .onEnded {
+                withAnimation {
+                    selectedEmoji = nil
+                }
+            }
+    }
+    
+    // MARK: - Dragging Emoji
+    
+    @State private var steadyStateEmojiDragOffset: CGSize = CGSize.zero
+    @GestureState private var gestureEmojiDragOffset: CGSize = CGSize.zero
+    
+    private var emojiDragOffset: CGSize {
+        (steadyStateEmojiDragOffset + gestureEmojiDragOffset) * zoomScale
+    }
+    
+    private func dragEmojiGesture(_ emoji: EmojiArtModel.Emoji) -> some Gesture {
+        DragGesture()
+            .updating($gestureEmojiDragOffset) { latestDragGestureValue, gestureEmojiDragOffset, _ in
+                gestureEmojiDragOffset = latestDragGestureValue.translation / zoomScale
+            }
+            .onEnded { finalDragGestureValue in
+                steadyStateEmojiDragOffset = steadyStateEmojiDragOffset + (finalDragGestureValue.translation / zoomScale)
+                document.moveEmoji(emoji, by: steadyStateEmojiDragOffset)
+                steadyStateEmojiDragOffset = CGSize.zero
             }
     }
 

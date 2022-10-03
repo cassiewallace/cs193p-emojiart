@@ -39,7 +39,7 @@ struct EmojiArtDocumentView: View {
                         Text(emoji.text)
                             .font(.system(size: fontSize(for: emoji)))
                             .border(selectedEmoji == emoji ? .black : .clear)
-                            .scaleEffect(zoomScale)
+                            .scaleEffect(selectedEmoji == emoji ? emojiZoomScale : zoomScale)
                             .position(position(for: emoji, in: geometry))
                             .offset(selectedEmoji == emoji ? emojiDragOffset : CGSize.zero)
                             .gesture(tapEmojiGesture(emoji))
@@ -113,19 +113,43 @@ struct EmojiArtDocumentView: View {
     
     @State private var steadyStateZoomScale: CGFloat = 1
     @GestureState private var gestureZoomScale: CGFloat = 1
+    @State private var steadyStateEmojiZoomScale: CGFloat = 1
+    @GestureState private var gestureEmojiZoomScale: CGFloat = 1
     
     private var zoomScale: CGFloat {
         steadyStateZoomScale * gestureZoomScale
     }
+    private var emojiZoomScale: CGFloat {
+        zoomScale * steadyStateEmojiZoomScale * gestureEmojiZoomScale
+    }
     
     private func zoomGesture() -> some Gesture {
-        MagnificationGesture()
-            .updating($gestureZoomScale) { latestGestureScale, gestureZoomScale, _ in
-                gestureZoomScale = latestGestureScale
-            }
-            .onEnded { gestureScaleAtEnd in
-                steadyStateZoomScale *= gestureScaleAtEnd
-            }
+        if selectedEmoji != nil {
+            return MagnificationGesture()
+                .updating($gestureEmojiZoomScale) { latestGestureScale, gestureEmojiZoomScale, _ in
+                    gestureEmojiZoomScale = latestGestureScale
+                }
+                .onEnded { gestureScaleAtEnd in
+                    steadyStateEmojiZoomScale *= gestureScaleAtEnd
+                    document.scaleEmoji(selectedEmoji!, by: steadyStateEmojiZoomScale)
+                    steadyStateEmojiZoomScale = 1
+                    
+            // .onEnded { finalDragGestureValue in
+            //     steadyStateEmojiDragOffset = steadyStateEmojiDragOffset + (finalDragGestureValue.translation / zoomScale)
+            //     document.moveEmoji(emoji, by: steadyStateEmojiDragOffset)
+            //     steadyStateEmojiDragOffset = CGSize.zero
+            // }
+                    
+                }
+        } else {
+            return MagnificationGesture()
+                .updating($gestureZoomScale) { latestGestureScale, gestureZoomScale, _ in
+                    gestureZoomScale = latestGestureScale
+                }
+                .onEnded { gestureScaleAtEnd in
+                    steadyStateZoomScale *= gestureScaleAtEnd
+                }
+        }
     }
     
     private func doubleTapToZoom(in size: CGSize) -> some Gesture {
@@ -167,6 +191,7 @@ struct EmojiArtDocumentView: View {
     
     // MARK: - Tapping Emojis
     
+    // TODO: Make it so that you can select multiple emojis at a time, instead of just 1.
     @State private var selectedEmoji: EmojiArtModel.Emoji? = nil
     
     private func tapEmojiGesture(_ emoji: EmojiArtModel.Emoji) -> some Gesture {

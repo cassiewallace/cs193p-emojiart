@@ -20,7 +20,6 @@ struct EmojiArtDocumentView: View {
         }
     }
     
-    // TODO: selectedEmoji == emoji might want to be a separate func
     var documentBody: some View {
         GeometryReader { geometry in
             ZStack {
@@ -35,9 +34,9 @@ struct EmojiArtDocumentView: View {
                     ProgressView().scaleEffect(2)
                 } else {
                     ForEach(document.emojis) { emoji in
-                        // TODO: Clean this up to either have 2 (conditional) Text() views, or create a ViewModifier that makes it look different based on whether it's selected.
                         Text(emoji.text)
                             .font(.system(size: fontSize(for: emoji)))
+                            .padding(5)
                             .border(selectedEmoji == emoji ? .black : .clear)
                             .scaleEffect(selectedEmoji == emoji ? emojiZoomScale : zoomScale)
                             .position(position(for: emoji, in: geometry))
@@ -45,6 +44,15 @@ struct EmojiArtDocumentView: View {
                             .gesture(tapEmojiGesture(emoji))
                             .gesture(selectedEmoji == emoji ? dragEmojiGesture(emoji) : nil)
                     }
+                }
+                if selectedEmoji != nil {
+                    Image(systemName: "trash.square")
+                        .font(.largeTitle)
+                        .position(x: 45, y: 45)
+                        .onTapGesture {
+                            document.removeEmoji(selectedEmoji!)
+                            selectedEmoji = nil
+                        }
                 }
             }
             .clipped()
@@ -191,7 +199,6 @@ struct EmojiArtDocumentView: View {
     
     // MARK: - Tapping Emojis
     
-    // TODO: Make it so that you can select multiple emojis at a time, instead of just 1.
     @State private var selectedEmoji: EmojiArtModel.Emoji? = nil
     
     private func tapEmojiGesture(_ emoji: EmojiArtModel.Emoji) -> some Gesture {
